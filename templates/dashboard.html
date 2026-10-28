@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Cipher Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Dashboard</h1>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_licenses or 0 }}</div>
+        <div class="stat-label">Total Licenses</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value green">{{ stats.active_licenses or 0 }}</div>
+        <div class="stat-label">Active</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value muted">{{ stats.expired_licenses or 0 }}</div>
+        <div class="stat-label">Expired</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value red">{{ stats.revoked_licenses or 0 }}</div>
+        <div class="stat-label">Revoked</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value blue">{{ stats.active_sessions or 0 }}</div>
+        <div class="stat-label">Active Sessions</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Recent Licenses</div>
+
+    {% if recent_licenses %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>License Key</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    <th>Sessions</th>
+                    <th>Created</th>
+                    <th>Note</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for license in recent_licenses %}
+                <tr>
+                    <td><code>{{ license.key }}</code></td>
+                    <td><span class="badge badge-{{ license.status }}">{{ license.status }}</span></td>
+                    <td>{{ license.expires_at.strftime('%Y-%m-%d') if license.expires_at else '—' }}</td>
+                    <td>{{ license.active_sessions }}/{{ license.max_sessions }}</td>
+                    <td>{{ license.created_at.strftime('%Y-%m-%d') if license.created_at else '—' }}</td>
+                    <td class="text-muted">{{ license.note[:40] if license.note else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="margin-top:1.25rem;">
+        <a href="{{ url_for('licenses') }}" class="btn btn-primary btn-sm">View All Licenses</a>
+    </div>
+    {% else %}
+    <div class="empty-state">No licenses yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,18 @@
+# Flask and extensions
+Flask==3.0.0
+Flask-Limiter==3.5.0
+
+# JWT handling
+PyJWT==2.8.0
+
+# PostgreSQL database driver
+psycopg2-binary==2.9.9
+
+# Cryptography for AES encryption
+cryptography==41.0.7
+
+# Production WSGI server
+gunicorn==21.2.0
+
+# Utilities
+python-dotenv==1.0.0

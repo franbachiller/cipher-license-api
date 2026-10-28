@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Sessions — Cipher Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        Active Sessions
+        <span class="text-muted" style="font-weight:400; font-size:0.85rem;" id="session-count-header">({{
+            sessions|length }})</span>
+    </h1>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+        <span style="font-size:0.72rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted);"
+            id="refresh-status">Auto-refresh on</span>
+        <button onclick="toggleAutoRefresh()" class="btn btn-sm" id="refresh-toggle">Pause</button>
+    </div>
+</div>
+
+{% if license_key_filter %}
+<div style="margin-bottom:1.25rem; display:flex; align-items:center; gap:0.75rem;">
+    <span style="font-size:0.8rem; color:var(--text-dim);">Filtered by: <code>{{ license_key_filter }}</code></span>
+    <a href="{{ url_for('sessions') }}" class="btn btn-sm">Clear</a>
+</div>
+{% endif %}
+
+<div class="card">
+    <div id="sessions-container">
+        {% if sessions %}
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>License Key</th>
+                        <th>IP Address</th>
+                        <th>Last Seen</th>
+                        <th>Expires</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody id="sessions-tbody">
+                    {% for session in sessions %}
+                    <tr>
+                        <td class="text-muted">{{ session.id }}</td>
+                        <td><code>{{ session.license_key }}</code></td>
+                        <td>{{ session.ip_address or '—' }}</td>
+                        <td>{{ session.last_seen.strftime('%Y-%m-%d %H:%M:%S') if session.last_seen else '—' }}</td>
+                        <td>{{ session.expires_at.strftime('%Y-%m-%d %H:%M:%S') if session.expires_at else '—' }}</td>
+                        <td>{{ session.created_at.strftime('%Y-%m-%d %H:%M:%S') if session.created_at else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">No active sessions.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let autoRefreshEnabled = true;
+    let refreshInterval = null;
+
+    function toggleAutoRefresh() {
+        autoRefreshEnabled = !autoRefreshEnabled;
+        const status = document.getElementById('refresh-status');
+        const toggle = document.getElementById('refresh-toggle');
+        if (autoRefreshEnabled) {
+            status.textContent = 'Auto-refresh on';
+            toggle.textContent = 'Pause';
+            startAutoRefresh();
+        } else {
+            status.textContent = 'Auto-refresh paused';
+            toggle.textContent = 'Resume';
+            stopAutoRefresh();
+        }
+    }
+
+    function startAutoRefresh() {
+        if (refreshInterval) return;
+        refreshInterval = setInterval(refreshSessions, 5000);
+    }
+
+    function stopAutoRefresh() {
+        if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+    }
+
+    async function refreshSessions() {
+        if (!autoRefreshEnabled) return;
+        try {
+            const response = await fetch('{{ url_for("sessions_live") }}');
+            const data = await response.json();
+            if (data.sessions !== undefined) {
+                updateSessionsTable(data.sessions);
+                const hdr = document.getElementById('session-count-header');
+                if (hdr) hdr.textContent = '(' + data.count + ')';
+            }
+        } catch (e) { }
+    }
+
+    function updateSessionsTable(sessions) {
+        const container = document.getElementById('sessions-container');
+        if (!container) return;
+        if (sessions.length === 0) {
+            container.innerHTML = '<div class="empty-state">No active sessions.</div>';
+            return;
+        }
+        const tbody = document.getElementById('sessions-tbody');
+        if (!tbody) {
+            container.innerHTML = `<div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>License Key</th><th>IP Address</th><th>Last Seen</th><th>Expires</th><th>Created</th></tr></thead>
+            <tbody id="sessions-tbody"></tbody></table></div>`;
+        }
+        document.getElementById('sessions-tbody').innerHTML = sessions.map(s => `
+        <tr>
+            <td class="text-muted">${s.id}</td>
+            <td><code>${s.license_key}</code></td>
+            <td>${s.ip_address || '—'}</td>
+            <td>${fmt(s.last_seen)}</td>
+            <td>${fmt(s.expires_at)}</td>
+            <td>${fmt(s.created_at)}</td>
+        </tr>`).join('');
+    }
+
+    function fmt(d) {
+        if (!d) return '—';
+        return new Date(d).toLocaleString('en-GB', { hour12: false }).replace(',', '');
+    }
+
+    startAutoRefresh();
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopAutoRefresh();
+        else if (autoRefreshEnabled) startAutoRefresh();
+    });
+</script>
+{% endblock %}

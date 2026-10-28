@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Bulk Result — Cipher Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .keys-list {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 1rem 1.25rem;
+        margin: 1rem 0;
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .key-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.4rem 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.85rem;
+    }
+
+    .key-item:last-child {
+        border-bottom: none;
+    }
+
+    .key-num {
+        color: var(--text-muted);
+        font-size: 0.72rem;
+        width: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{{ keys|length }} Licenses Generated</h1>
+    <div style="display:flex; gap:0.5rem;">
+        <button onclick="copyAll()" class="btn btn-sm">Copy All</button>
+        <a href="{{ url_for('licenses') }}" class="btn btn-primary btn-sm">View Licenses</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Generated Keys — {{ expires_days }} days, {{ max_sessions }} session(s){% if note %} — {{
+        note }}{% endif %}</div>
+
+    <div class="keys-list" id="keys-container">
+        {% for key in keys %}
+        <div class="key-item">
+            <span class="key-num">{{ loop.index }}</span>
+            <code>{{ key }}</code>
+            <button class="btn btn-sm" style="padding:0.12rem 0.45rem; font-size:0.68rem;"
+                onclick="copySingle('{{ key }}', this)">Copy</button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div style="margin-top:1rem; display:flex; gap:0.75rem;">
+        <a href="{{ url_for('bulk_create') }}" class="btn btn-sm">Create More</a>
+        <a href="{{ url_for('licenses') }}" class="btn btn-sm">Back to Licenses</a>
+    </div>
+</div>
+
+<textarea id="all-keys" style="position:absolute;left:-9999px;" readonly>
+{%- for key in keys %}{{ key }}
+{% endfor -%}
+</textarea>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function copyAll() {
+        const ta = document.getElementById('all-keys');
+        navigator.clipboard.writeText(ta.value.trim());
+        const btn = event.target;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy All', 1500);
+    }
+    function copySingle(key, btn) {
+        navigator.clipboard.writeText(key);
+        btn.textContent = '✓';
+        setTimeout(() => btn.textContent = 'Copy', 1200);
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Login — Cipher Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+    }
+
+    .page-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+    }
+
+    .login-wrap {
+        width: 100%;
+        max-width: 380px;
+    }
+
+    .login-brand {
+        text-align: center;
+        margin-bottom: 2.5rem;
+    }
+
+    .login-brand-name {
+        font-size: 1.3rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--white);
+    }
+
+    .login-brand-name span {
+        color: var(--red-light);
+    }
+
+    .login-brand-sub {
+        font-size: 0.72rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-top: 0.4rem;
+    }
+
+    .login-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 2rem;
+    }
+
+    .login-card .btn-primary {
+        width: 100%;
+        padding: 0.65rem;
+        font-size: 0.82rem;
+        margin-top: 0.5rem;
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 1.25rem;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+    <div class="login-brand">
+        <div class="login-brand-name">CIPHER <span>ADMIN</span></div>
+        <div class="login-brand-sub">Management Console</div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="alert alert-{{ category }}" style="margin-bottom:1rem;">{{ message }}</div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <div class="login-card">
+        <form method="POST" autocomplete="off">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Sign In</button>
+        </form>
+    </div>
+    <div class="login-footer">c1pher.lol &mdash; Restricted Access</div>
+</div>
+{% endblock %}

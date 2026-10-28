@@ -1,0 +1,43 @@
+[Unit]
+Description=Cipher License API Server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/cipher-license/CipherAPI
+Environment="PATH=/opt/cipher-license/CipherAPI/venv/bin"
+EnvironmentFile=/opt/cipher-license/CipherAPI/api_server/.env
+
+# Gunicorn configuration
+ExecStart=/opt/cipher-license/CipherAPI/venv/bin/gunicorn \
+    --workers 4 \
+    --worker-class sync \
+    --bind unix:/tmp/cipher-api.sock \
+    --timeout 30 \
+    --access-logfile /var/log/cipher-api/access.log \
+    --error-logfile /var/log/cipher-api/error.log \
+    --log-level info \
+    --capture-output \
+    api_server.app:app
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=0
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/tmp /var/log/cipher-api /opt/cipher-license/CipherAPI/api_server/binaries
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

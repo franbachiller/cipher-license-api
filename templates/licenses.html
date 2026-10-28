@@ -1,0 +1,831 @@
+{% extends "base.html" %}
+{% block title %}Licenses — Cipher Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ── MODAL OVERLAY ── */
+    .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.open {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    .modal {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 8px;
+        padding: 2rem;
+        width: 100%;
+        max-width: 460px;
+        transform: translateY(16px) scale(0.98);
+        transition: transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1), opacity 0.2s ease;
+        opacity: 0;
+        position: relative;
+    }
+
+    .modal-overlay.open .modal {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+
+    .modal-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--white);
+        margin-bottom: 1.5rem;
+        letter-spacing: 0.02em;
+    }
+
+    .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-dim);
+        font-size: 1.2rem;
+        line-height: 1;
+        transition: color 0.15s;
+    }
+
+    .modal-close:hover {
+        color: var(--text);
+    }
+
+    .modal-actions {
+        display: flex;
+        gap: 0.65rem;
+        margin-top: 1.5rem;
+        justify-content: flex-end;
+    }
+
+    .modal-sep {
+        height: 1px;
+        background: var(--border);
+        margin: 1.25rem 0;
+    }
+
+    /* ── TOAST ── */
+    .toast-container {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        pointer-events: none;
+    }
+
+    .toast {
+        background: var(--surface2);
+        border: 1px solid var(--border2);
+        border-radius: 5px;
+        padding: 0.65rem 1.1rem;
+        font-size: 0.82rem;
+        color: var(--text);
+        opacity: 0;
+        transform: translateX(20px);
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        border-left: 3px solid var(--border2);
+        pointer-events: none;
+        min-width: 220px;
+    }
+
+    .toast.show {
+        opacity: 1;
+        transform: translateX(0);
+    }
+
+    .toast.success {
+        border-left-color: #27ae60;
+    }
+
+    .toast.danger {
+        border-left-color: var(--red-light);
+    }
+
+    .toast.info {
+        border-left-color: #3498db;
+    }
+
+    /* ── TABLE ANIMATIONS ── */
+    tbody tr {
+        transition: opacity 0.3s ease, transform 0.3s ease, background 0.15s;
+    }
+
+    tbody tr.removing {
+        opacity: 0;
+        transform: translateX(20px);
+        pointer-events: none;
+    }
+
+    tbody tr.highlight-new {
+        animation: highlightNew 1.2s ease forwards;
+    }
+
+    @keyframes highlightNew {
+        0% {
+            background: rgba(192, 57, 43, 0.12);
+        }
+
+        100% {
+            background: transparent;
+        }
+    }
+
+    /* ── NOTE ── */
+    .note-text {
+        cursor: pointer;
+    }
+
+    .note-text:hover {
+        color: var(--text);
+    }
+
+    .note-input {
+        width: 150px;
+        padding: 0.22rem 0.5rem;
+        font-size: 0.78rem;
+        background: var(--surface2);
+        border: 1px solid var(--red-dim);
+        border-radius: 3px;
+        color: var(--text);
+        display: none;
+    }
+
+    /* ── MISC ── */
+    .copied-badge {
+        font-size: 0.65rem;
+        color: var(--red-light);
+        margin-left: 0.3rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+        pointer-events: none;
+    }
+
+    .copied-badge.show {
+        opacity: 1;
+    }
+
+    .days-ok {
+        color: #2ecc71;
+        font-size: 0.72rem;
+    }
+
+    .days-warn {
+        color: #e6a817;
+        font-size: 0.72rem;
+    }
+
+    .days-over {
+        color: var(--red-light);
+        font-size: 0.72rem;
+    }
+
+    .hwid-yes {
+        color: #2ecc71;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+
+    .hwid-no {
+        color: var(--text-muted);
+        font-size: 0.72rem;
+    }
+
+    .spin {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    /* Bulk keys result */
+    .bulk-keys-box {
+        background: var(--surface2);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        max-height: 280px;
+        overflow-y: auto;
+        margin: 0.75rem 0;
+    }
+
+    .bulk-key-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.3rem 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 0.82rem;
+    }
+
+    .bulk-key-item:last-child {
+        border-bottom: none;
+    }
+
+    .bulk-key-num {
+        color: var(--text-muted);
+        font-size: 0.7rem;
+        width: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">
+        Licenses
+        <span class="text-muted" style="font-weight:400; font-size:0.85rem;" id="total-count">({{ total_count }})</span>
+    </h1>
+    <div style="display:flex; gap:0.5rem;">
+        <button onclick="openModal('modal-bulk')" class="btn btn-sm">Bulk Create</button>
+        <a href="{{ url_for('export_licenses', status=status_filter) }}" class="btn btn-sm">Export CSV</a>
+        <button onclick="openModal('modal-create')" class="btn btn-primary btn-sm">New License</button>
+    </div>
+</div>
+
+<div class="card">
+    <div
+        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.25rem; gap:1rem; flex-wrap:wrap;">
+        <div class="filter-bar" style="margin-bottom:0;">
+            <a href="{{ url_for('licenses', q=search) }}"
+                class="btn btn-sm {% if not status_filter %}active-filter{% endif %}">All</a>
+            <a href="{{ url_for('licenses', status='active', q=search) }}"
+                class="btn btn-sm {% if status_filter == 'active' %}active-filter{% endif %}">Active</a>
+            <a href="{{ url_for('licenses', status='expired', q=search) }}"
+                class="btn btn-sm {% if status_filter == 'expired' %}active-filter{% endif %}">Expired</a>
+            <a href="{{ url_for('licenses', status='revoked', q=search) }}"
+                class="btn btn-sm {% if status_filter == 'revoked' %}active-filter{% endif %}">Revoked</a>
+        </div>
+        <form method="GET" action="{{ url_for('licenses') }}" style="display:flex; gap:0.5rem;">
+            {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+            <input type="text" name="q" value="{{ search or '' }}" placeholder="Search key or note..."
+                style="width:220px; padding:0.35rem 0.7rem; font-size:0.82rem;">
+            <button type="submit" class="btn btn-sm">Search</button>
+            {% if search %}<a href="{{ url_for('licenses', status=status_filter) }}" class="btn btn-sm">Clear</a>{%
+            endif %}
+        </form>
+    </div>
+
+    {% if licenses %}
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>License Key</th>
+                    <th>Status</th>
+                    <th>Expires</th>
+                    <th>Sessions</th>
+                    <th>HWID</th>
+                    <th>Note</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="licenses-tbody">
+                {% for lic in licenses %}
+                {% set delta = (lic.expires_at.replace(tzinfo=none) - now_utc).days if lic.expires_at else 999 %}
+                <tr id="row-{{ lic.key }}" data-key="{{ lic.key }}" data-status="{{ lic.status }}">
+                    <td>
+                        <code style="font-size:0.78rem;">{{ lic.key }}</code>
+                        <span class="copied-badge" id="cb-{{ loop.index }}">copied</span>
+                        <button class="btn btn-sm"
+                            style="padding:0.12rem 0.4rem; font-size:0.68rem; margin-left:0.3rem;"
+                            onclick="copyKey('{{ lic.key }}', '{{ loop.index }}')">Copy</button>
+                    </td>
+                    <td><span class="badge badge-{{ lic.status }}" id="badge-{{ lic.key }}">{{ lic.status }}</span></td>
+                    <td id="expires-{{ lic.key }}">
+                        {% if lic.expires_at %}
+                        {{ lic.expires_at.strftime('%Y-%m-%d') }}
+                        {% if delta < 0 %}<br><span class="days-over">{{ delta|abs }}d ago</span>
+                            {% elif delta <= 7 %}<br><span class="days-warn">{{ delta }}d left</span>
+                                {% else %}<br><span class="days-ok">{{ delta }}d left</span>{% endif %}
+                                {% else %}—{% endif %}
+                    </td>
+                    <td>{{ lic.active_sessions }}/{{ lic.max_sessions }}</td>
+                    <td id="hwid-{{ lic.key }}">
+                        {% if lic.hwid %}<span class="hwid-yes">BOUND</span>{% else %}<span class="hwid-no">—</span>{%
+                        endif %}
+                    </td>
+                    <td>
+                        <span class="note-text text-muted" id="note-txt-{{ lic.key }}"
+                            onclick="showNoteInput('{{ lic.key }}')">{{ lic.note[:30] if lic.note else '—' }}</span>
+                        <input class="note-input" id="note-in-{{ lic.key }}" value="{{ lic.note or '' }}"
+                            onblur="saveNote('{{ lic.key }}')"
+                            onkeydown="if(event.key==='Enter')saveNote('{{ lic.key }}');if(event.key==='Escape')cancelNote('{{ lic.key }}');">
+                    </td>
+                    <td>
+                        <div style="display:flex; gap:0.3rem; flex-wrap:wrap;" id="actions-{{ lic.key }}">
+                            {% if lic.status == 'active' %}
+                            <button class="btn btn-warning btn-sm" onclick="openExtend('{{ lic.key }}')">+Days</button>
+                            <button class="btn btn-danger btn-sm" onclick="openRevoke('{{ lic.key }}')">Revoke</button>
+                            {% if lic.hwid %}
+                            <button class="btn btn-sm" style="color:#e6a817;border-color:#7a5c0f;"
+                                onclick="doResetHwid('{{ lic.key }}', this)">HWID</button>
+                            {% endif %}
+                            {% else %}
+                            <button class="btn btn-sm" style="color:#2ecc71;border-color:#1a6b3a;"
+                                onclick="doReactivate('{{ lic.key }}', this)">Reactivate</button>
+                            <button class="btn btn-danger btn-sm" onclick="openRevoke('{{ lic.key }}')">Remove</button>
+                            {% endif %}
+                            <a href="{{ url_for('sessions', license_key=lic.key) }}" class="btn btn-sm">Sessions</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if total_pages > 1 %}
+    <div class="pagination">
+        {% if page > 1 %}<a href="{{ url_for('licenses', status=status_filter, q=search, page=page-1) }}"
+            class="btn btn-sm">Previous</a>{% endif %}
+        <span class="pagination-info">Page {{ page }} of {{ total_pages }}</span>
+        {% if page < total_pages %}<a href="{{ url_for('licenses', status=status_filter, q=search, page=page+1) }}"
+            class="btn btn-sm">Next</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="empty-state">No licenses found.</div>
+    {% endif %}
+</div>
+
+<!-- ═══════════ MODALS ═══════════ -->
+
+<!-- Create License -->
+<div class="modal-overlay" id="modal-create" onclick="overlayClose(event,'modal-create')">
+    <div class="modal">
+        <button class="modal-close" onclick="closeModal('modal-create')">&times;</button>
+        <div class="modal-title">New License</div>
+        <div class="form-group">
+            <label>Duration</label>
+            <select id="c-days">
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">365 days</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Max Sessions</label>
+            <input type="number" id="c-sess" value="1" min="1" max="10">
+        </div>
+        <div class="form-group">
+            <label>Note <span style="font-weight:400;text-transform:none;">(optional)</span></label>
+            <input type="text" id="c-note" placeholder="Customer name, order ref...">
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-create')">Cancel</button>
+            <button class="btn btn-primary" id="c-submit" onclick="doCreate()">Generate</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Create -->
+<div class="modal-overlay" id="modal-bulk" onclick="overlayClose(event,'modal-bulk')">
+    <div class="modal" style="max-width:520px;">
+        <button class="modal-close" onclick="closeModal('modal-bulk')">&times;</button>
+        <div class="modal-title">Bulk Create</div>
+        <div id="bulk-form-section">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                <div class="form-group">
+                    <label>Quantity <span style="font-weight:400;text-transform:none;">(max 100)</span></label>
+                    <input type="number" id="b-count" value="5" min="1" max="100">
+                </div>
+                <div class="form-group">
+                    <label>Max Sessions</label>
+                    <input type="number" id="b-sess" value="1" min="1" max="10">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Duration</label>
+                <select id="b-days">
+                    <option value="1">1 day</option>
+                    <option value="7">7 days</option>
+                    <option value="30" selected>30 days</option>
+                    <option value="90">90 days</option>
+                    <option value="180">180 days</option>
+                    <option value="365">365 days</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Note <span style="font-weight:400;text-transform:none;">(applied to all)</span></label>
+                <input type="text" id="b-note" placeholder="Batch sale, promo...">
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal('modal-bulk')">Cancel</button>
+                <button class="btn btn-primary" id="b-submit" onclick="doBulk()">Generate</button>
+            </div>
+        </div>
+        <div id="bulk-result-section" style="display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                <span id="bulk-result-title" style="font-size:0.82rem;color:var(--text-dim);"></span>
+                <button class="btn btn-sm" onclick="copyAllBulk()">Copy All</button>
+            </div>
+            <div class="bulk-keys-box" id="bulk-keys-box"></div>
+            <textarea id="bulk-all-text" style="position:absolute;left:-9999px;"></textarea>
+            <div class="modal-actions">
+                <button class="btn btn-sm" onclick="resetBulk()">Create More</button>
+                <button class="btn btn-primary btn-sm" onclick="closeModal('modal-bulk')">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Revoke / Delete -->
+<div class="modal-overlay" id="modal-revoke" onclick="overlayClose(event,'modal-revoke')">
+    <div class="modal" style="max-width:400px;">
+        <button class="modal-close" onclick="closeModal('modal-revoke')">&times;</button>
+        <div class="modal-title" id="revoke-title">License action</div>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:1rem;">
+            Choose how to handle this license:
+        </p>
+        <div style="display:flex;flex-direction:column;gap:0.65rem;">
+            <button class="btn btn-danger" id="btn-revoke-only" onclick="doRevoke(false)">
+                Revoke — keep in system for reactivation
+            </button>
+            <button class="btn" style="color:var(--red-light);border-color:var(--red-dim);" id="btn-delete-perm"
+                onclick="doRevoke(true)">
+                Delete permanently — cannot be undone
+            </button>
+        </div>
+        <div class="modal-sep"></div>
+        <div class="modal-actions" style="margin-top:0;">
+            <button class="btn" onclick="closeModal('modal-revoke')">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Extend -->
+<div class="modal-overlay" id="modal-extend" onclick="overlayClose(event,'modal-extend')">
+    <div class="modal" style="max-width:360px;">
+        <button class="modal-close" onclick="closeModal('modal-extend')">&times;</button>
+        <div class="modal-title">Extend License</div>
+        <div class="form-group">
+            <label>Add days</label>
+            <select id="ext-days">
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="60">60 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">365 days</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn" onclick="closeModal('modal-extend')">Cancel</button>
+            <button class="btn btn-primary" onclick="doExtend()">Extend</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // ── STATE ──────────────────────────────────────────────
+    let _revokeTarget = null;
+    let _extendTarget = null;
+
+    // ── MODAL HELPERS ──────────────────────────────────────
+    function openModal(id) {
+        document.getElementById(id).classList.add('open');
+    }
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('open');
+    }
+    function overlayClose(e, id) {
+        if (e.target === document.getElementById(id)) closeModal(id);
+    }
+
+    // ── TOAST ──────────────────────────────────────────────
+    function toast(msg, type = 'info', duration = 3000) {
+        const c = document.getElementById('toasts');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.textContent = msg;
+        c.appendChild(t);
+        requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+        setTimeout(() => {
+            t.classList.remove('show');
+            setTimeout(() => t.remove(), 300);
+        }, duration);
+    }
+
+    // ── COPY ───────────────────────────────────────────────
+    function copyKey(key, idx) {
+        navigator.clipboard.writeText(key).then(() => {
+            const b = document.getElementById('cb-' + idx);
+            b.classList.add('show');
+            setTimeout(() => b.classList.remove('show'), 1400);
+        });
+    }
+
+    // ── CREATE SINGLE ──────────────────────────────────────
+    async function doCreate() {
+        const btn = document.getElementById('c-submit');
+        btn.disabled = true; btn.textContent = 'Generating...';
+        try {
+            const r = await fetch('/licenses/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    expires_days: +document.getElementById('c-days').value,
+                    max_sessions: +document.getElementById('c-sess').value,
+                    note: document.getElementById('c-note').value
+                })
+            });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            closeModal('modal-create');
+            document.getElementById('c-note').value = '';
+            addRowToTable(d);
+            toast(`License created: ${d.key.slice(0, 8)}...`, 'success');
+            updateCount(+1);
+        } catch (e) {
+            toast('Error: ' + e.message, 'danger');
+        } finally {
+            btn.disabled = false; btn.textContent = 'Generate';
+        }
+    }
+
+    function addRowToTable(d) {
+        const tbody = document.getElementById('licenses-tbody');
+        if (!tbody) return;
+        const tr = document.createElement('tr');
+        tr.id = 'row-' + d.key;
+        tr.dataset.key = d.key;
+        tr.dataset.status = d.status;
+        tr.innerHTML = `
+        <td><code style="font-size:0.78rem;">${d.key}</code>
+            <span class="copied-badge" id="cb-new-${d.key}">copied</span>
+            <button class="btn btn-sm" style="padding:0.12rem 0.4rem;font-size:0.68rem;margin-left:0.3rem;"
+                    onclick="copyKey('${d.key}','new-${d.key}')">Copy</button></td>
+        <td><span class="badge badge-${d.status}" id="badge-${d.key}">${d.status}</span></td>
+        <td id="expires-${d.key}">${d.expires_at || '—'}<br><span class="days-ok">30d left</span></td>
+        <td>0/${d.max_sessions}</td>
+        <td id="hwid-${d.key}"><span class="hwid-no">—</span></td>
+        <td><span class="note-text text-muted" id="note-txt-${d.key}"
+                  onclick="showNoteInput('${d.key}')">${d.note || '—'}</span>
+            <input class="note-input" id="note-in-${d.key}" value="${d.note || ''}"
+                   onblur="saveNote('${d.key}')"
+                   onkeydown="if(event.key==='Enter')saveNote('${d.key}');if(event.key==='Escape')cancelNote('${d.key}');"></td>
+        <td><div style="display:flex;gap:0.3rem;flex-wrap:wrap;" id="actions-${d.key}">
+            <button class="btn btn-warning btn-sm" onclick="openExtend('${d.key}')">+Days</button>
+            <button class="btn btn-danger btn-sm" onclick="openRevoke('${d.key}')">Revoke</button>
+            <a href="/sessions?license_key=${d.key}" class="btn btn-sm">Sessions</a>
+        </div></td>`;
+        tbody.prepend(tr);
+        requestAnimationFrame(() => tr.classList.add('highlight-new'));
+    }
+
+    function updateCount(delta) {
+        const el = document.getElementById('total-count');
+        if (!el) return;
+        const m = el.textContent.match(/\d+/);
+        if (m) el.textContent = `(${+m[0] + delta})`;
+    }
+
+    // ── BULK CREATE ────────────────────────────────────────
+    async function doBulk() {
+        const btn = document.getElementById('b-submit');
+        btn.disabled = true; btn.textContent = 'Generating...';
+        try {
+            const r = await fetch('/licenses/bulk-create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    count: +document.getElementById('b-count').value,
+                    expires_days: +document.getElementById('b-days').value,
+                    max_sessions: +document.getElementById('b-sess').value,
+                    note: document.getElementById('b-note').value
+                })
+            });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            showBulkResult(d);
+            updateCount(d.count);
+            toast(`${d.count} licenses created`, 'success');
+        } catch (e) {
+            toast('Error: ' + e.message, 'danger');
+            btn.disabled = false; btn.textContent = 'Generate';
+        }
+    }
+
+    function showBulkResult(d) {
+        document.getElementById('bulk-form-section').style.display = 'none';
+        const res = document.getElementById('bulk-result-section');
+        res.style.display = '';
+        document.getElementById('bulk-result-title').textContent =
+            `${d.count} keys — ${d.expires_days} days, ${d.max_sessions} session(s)${d.note ? ' — ' + d.note : ''}`;
+        const box = document.getElementById('bulk-keys-box');
+        box.innerHTML = d.keys.map((k, i) => `
+        <div class="bulk-key-item">
+            <span class="bulk-key-num">${i + 1}</span>
+            <code style="font-size:0.79rem;">${k}</code>
+            <button class="btn btn-sm" style="padding:0.12rem 0.4rem;font-size:0.68rem;"
+                    onclick="copySingle('${k}',this)">Copy</button>
+        </div>`).join('');
+        document.getElementById('bulk-all-text').value = d.keys.join('\n');
+        document.getElementById('b-submit').disabled = false;
+        document.getElementById('b-submit').textContent = 'Generate';
+    }
+
+    function resetBulk() {
+        document.getElementById('bulk-form-section').style.display = '';
+        document.getElementById('bulk-result-section').style.display = 'none';
+    }
+
+    function copyAllBulk() {
+        const ta = document.getElementById('bulk-all-text');
+        navigator.clipboard.writeText(ta.value);
+        toast('All keys copied to clipboard', 'info');
+    }
+
+    function copySingle(key, btn) {
+        navigator.clipboard.writeText(key);
+        const orig = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(() => btn.textContent = orig, 1200);
+    }
+
+    // ── REVOKE / DELETE ────────────────────────────────────
+    function openRevoke(key) {
+        _revokeTarget = key;
+        const row = document.getElementById('row-' + key);
+        const status = row ? row.dataset.status : 'active';
+        const isActive = status === 'active';
+        document.getElementById('revoke-title').textContent = isActive ? 'Revoke License' : 'Remove License';
+        document.getElementById('btn-revoke-only').style.display = isActive ? '' : 'none';
+        openModal('modal-revoke');
+    }
+
+    async function doRevoke(permanent) {
+        if (!_revokeTarget) return;
+        const key = _revokeTarget;
+        closeModal('modal-revoke');
+        const endpoint = permanent ? `/licenses/${key}/delete` : `/licenses/${key}/revoke`;
+        try {
+            const r = await fetch(endpoint, { method: 'POST' });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            const row = document.getElementById('row-' + key);
+            if (permanent) {
+                if (row) {
+                    row.classList.add('removing');
+                    setTimeout(() => row.remove(), 350);
+                }
+                updateCount(-1);
+                toast('License permanently deleted', 'danger');
+            } else {
+                if (row) {
+                    row.dataset.status = 'revoked';
+                    const badge = document.getElementById('badge-' + key);
+                    if (badge) { badge.className = 'badge badge-revoked'; badge.textContent = 'revoked'; }
+                    const actions = document.getElementById('actions-' + key);
+                    if (actions) actions.innerHTML = `
+                    <button class="btn btn-sm" style="color:#2ecc71;border-color:#1a6b3a;"
+                            onclick="doReactivate('${key}', this)">Reactivate</button>
+                    <button class="btn btn-danger btn-sm" onclick="openRevoke('${key}')">Remove</button>
+                    <a href="/sessions?license_key=${key}" class="btn btn-sm">Sessions</a>`;
+                }
+                toast('License revoked', 'info');
+            }
+        } catch (e) {
+            toast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ── REACTIVATE ─────────────────────────────────────────
+    async function doReactivate(key, btn) {
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            const r = await fetch(`/licenses/${key}/reactivate`, { method: 'POST' });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            const row = document.getElementById('row-' + key);
+            if (row) {
+                row.dataset.status = 'active';
+                const badge = document.getElementById('badge-' + key);
+                if (badge) { badge.className = 'badge badge-active'; badge.textContent = 'active'; }
+                const actions = document.getElementById('actions-' + key);
+                if (actions) actions.innerHTML = `
+                <button class="btn btn-warning btn-sm" onclick="openExtend('${key}')">+Days</button>
+                <button class="btn btn-danger btn-sm" onclick="openRevoke('${key}')">Revoke</button>
+                <a href="/sessions?license_key=${key}" class="btn btn-sm">Sessions</a>`;
+            }
+            toast('License reactivated', 'success');
+        } catch (e) {
+            btn.disabled = false; btn.textContent = orig;
+            toast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ── HWID RESET ─────────────────────────────────────────
+    async function doResetHwid(key, btn) {
+        if (!confirm('Reset HWID for this license?')) return;
+        const orig = btn.textContent;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+            const r = await fetch(`/licenses/${key}/reset-hwid`, { method: 'POST' });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            const hwidEl = document.getElementById('hwid-' + key);
+            if (hwidEl) hwidEl.innerHTML = '<span class="hwid-no">—</span>';
+            btn.remove();
+            toast('HWID cleared — user can rebind', 'success');
+        } catch (e) {
+            btn.disabled = false; btn.textContent = orig;
+            toast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ── EXTEND ─────────────────────────────────────────────
+    function openExtend(key) {
+        _extendTarget = key;
+        openModal('modal-extend');
+    }
+
+    async function doExtend() {
+        if (!_extendTarget) return;
+        const key = _extendTarget;
+        const days = +document.getElementById('ext-days').value;
+        closeModal('modal-extend');
+        try {
+            const r = await fetch(`/licenses/${key}/extend`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ extend_days: days })
+            });
+            const d = await r.json();
+            if (!d.ok) throw new Error(d.error);
+            const exEl = document.getElementById('expires-' + key);
+            if (exEl) exEl.innerHTML = `${d.expires_at}<br><span class="days-ok">${d.extend_days + 30}d left</span>`;
+            toast(`Extended by ${days} days → ${d.expires_at}`, 'success');
+        } catch (e) {
+            toast('Error: ' + e.message, 'danger');
+        }
+    }
+
+    // ── NOTE INLINE EDIT ───────────────────────────────────
+    function showNoteInput(key) {
+        document.getElementById('note-txt-' + key).style.display = 'none';
+        const inp = document.getElementById('note-in-' + key);
+        inp.style.display = 'inline-block';
+        inp.focus();
+    }
+    function cancelNote(key) {
+        document.getElementById('note-in-' + key).style.display = 'none';
+        document.getElementById('note-txt-' + key).style.display = '';
+    }
+    async function saveNote(key) {
+        const inp = document.getElementById('note-in-' + key);
+        const val = inp.value.trim();
+        try {
+            const fd = new FormData(); fd.append('note', val);
+            const r = await fetch(`/licenses/${key}/note`, { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.ok) {
+                const span = document.getElementById('note-txt-' + key);
+                span.textContent = val || '—';
+                span.style.display = '';
+                inp.style.display = 'none';
+            }
+        } catch (e) { }
+    }
+
+    // ── ESC TO CLOSE ───────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape')
+            document.querySelectorAll('.modal-overlay.open')
+                .forEach(m => m.classList.remove('open'));
+    });
+</script>
+{% endblock %}
